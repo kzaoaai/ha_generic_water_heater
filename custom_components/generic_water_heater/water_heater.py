@@ -21,6 +21,7 @@ from homeassistant.const import (
 from homeassistant.core import DOMAIN as HA_DOMAIN, callback
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.helpers.restore_state import RestoreEntity
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 
 from homeassistant.const import UnitOfTemperature
 from homeassistant.util.unit_conversion import TemperatureConverter
@@ -49,6 +50,15 @@ async def async_setup_platform(
         log_level = config.get("log_level", "DEBUG")
         unit = hass.config.units.temperature_unit
 
+        registry = er.async_get(hass)
+        entity_entry = registry.async_get(heater_entity_id)
+        device_identifiers = None
+        if entity_entry and entity_entry.device_id:
+            device_registry = dr.async_get(hass)
+            device_entry = device_registry.async_get(entity_entry.device_id)
+            if device_entry:
+                device_identifiers = device_entry.identifiers
+
         entities.append(
             GenericWaterHeater(
                 name,
@@ -61,6 +71,7 @@ async def async_setup_platform(
                 unit,
                 log_level=log_level,
                 config_entry_id=None,
+                device_identifiers=device_identifiers,
             )
         )
 
@@ -81,6 +92,15 @@ async def async_setup_entry(hass, entry, async_add_entities):
     unit = hass.config.units.temperature_unit
     log_level = data.get("log_level", "DEBUG")
 
+    registry = er.async_get(hass)
+    entity_entry = registry.async_get(heater_entity_id)
+    device_identifiers = None
+    if entity_entry and entity_entry.device_id:
+        device_registry = dr.async_get(hass)
+        device_entry = device_registry.async_get(entity_entry.device_id)
+        if device_entry:
+            device_identifiers = device_entry.identifiers
+
     async_add_entities(
         [
             GenericWaterHeater(
@@ -94,6 +114,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
                 unit,
                 log_level=log_level,
                 config_entry_id=entry.entry_id,
+                device_identifiers=device_identifiers,
             )
         ]
     )
@@ -121,6 +142,7 @@ class GenericWaterHeater(WaterHeaterEntity, RestoreEntity):
         unit,
         log_level: str = "DEBUG",
         config_entry_id=None,
+        device_identifiers=None,
     ):
         """Initialize the water_heater device."""
         self._attr_name = name
@@ -141,6 +163,7 @@ class GenericWaterHeater(WaterHeaterEntity, RestoreEntity):
         self._attr_available = False
         self._attr_should_poll = False
         self._log_level = log_level.upper() if log_level else "DEBUG"
+        self._device_identifiers = device_identifiers
         # device/unique id
         # prefer config_entry_id (when created via UI) otherwise fall back to heater entity id
         self._device_identifier = config_entry_id or heater_entity_id
@@ -153,6 +176,10 @@ class GenericWaterHeater(WaterHeaterEntity, RestoreEntity):
     @property
     def device_info(self):
         """Return device information for the device registry."""
+        if self._device_identifiers:
+            return {
+                "identifiers": self._device_identifiers,
+            }
         return {
             "identifiers": {(DOMAIN, self._device_identifier)},
             "name": self._attr_name,
