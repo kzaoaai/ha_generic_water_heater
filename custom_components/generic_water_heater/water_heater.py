@@ -25,7 +25,7 @@ from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
 from homeassistant.util.unit_conversion import TemperatureConverter
 
-from . import CONF_HEATER, CONF_SENSOR, CONF_TARGET_TEMP, CONF_TEMP_DELTA, CONF_TEMP_MIN, CONF_TEMP_MAX
+from . import DOMAIN, CONF_HEATER, CONF_SENSOR, CONF_TARGET_TEMP, CONF_TEMP_DELTA, CONF_TEMP_MIN, CONF_TEMP_MAX
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -50,18 +50,76 @@ async def async_setup_platform(
 
         entities.append(
             GenericWaterHeater(
-                name, heater_entity_id, sensor_entity_id, target_temp, temp_delta, min_temp, max_temp, unit
+                name,
+                heater_entity_id,
+                sensor_entity_id,
+                target_temp,
+                temp_delta,
+                min_temp,
+                max_temp,
+                unit,
+                log_level="DEBUG",
+                config_entry_id=None,
             )
         )
 
     async_add_entities(entities)
 
 
+async def async_setup_entry(hass, entry, async_add_entities):
+    """Set up a water heater from a config entry."""
+    # merge entry data and options so options override data
+    data = {**entry.data, **getattr(entry, "options", {})}
+    name = data.get(CONF_NAME, DEFAULT_NAME)
+    heater_entity_id = data.get(CONF_HEATER)
+    sensor_entity_id = data.get(CONF_SENSOR)
+    target_temp = data.get(CONF_TARGET_TEMP)
+    temp_delta = data.get(CONF_TEMP_DELTA)
+    min_temp = data.get(CONF_TEMP_MIN)
+    max_temp = data.get(CONF_TEMP_MAX)
+    unit = hass.config.units.temperature_unit
+    log_level = data.get("log_level", "DEBUG")
+
+    async_add_entities(
+        [
+            GenericWaterHeater(
+                name,
+                heater_entity_id,
+                sensor_entity_id,
+                target_temp,
+                temp_delta,
+                min_temp,
+                max_temp,
+                unit,
+                log_level=log_level,
+                config_entry_id=entry.entry_id,
+            )
+        ]
+    )
+    return True
+
+
+async def async_unload_entry(hass, entry):
+    """Unload a config entry for this platform."""
+    # Entities are removed automatically when the config entry is removed/unloaded
+    return True
+
+
 class GenericWaterHeater(WaterHeaterEntity, RestoreEntity):
     """Representation of a generic water_heater device."""
 
     def __init__(
-        self, name, heater_entity_id, sensor_entity_id, target_temp, temp_delta, min_temp, max_temp, unit
+        self,
+        name,
+        heater_entity_id,
+        sensor_entity_id,
+        target_temp,
+        temp_delta,
+        min_temp,
+        max_temp,
+        unit,
+        log_level: str = "DEBUG",
+        config_entry_id=None,
     ):
         """Initialize the water_heater device."""
         self._attr_name = name
@@ -81,6 +139,33 @@ class GenericWaterHeater(WaterHeaterEntity, RestoreEntity):
         ]
         self._attr_available = False
         self._attr_should_poll = False
+        self._log_level = log_level.upper() if log_level else "DEBUG"
+        # device/unique id
+        # prefer config_entry_id (when created via UI) otherwise fall back to heater entity id
+        self._device_identifier = config_entry_id or heater_entity_id
+        # expose unique_id for the entity
+        try:
+            self._attr_unique_id = f"{DOMAIN}_{self._device_identifier}"
+        except Exception:
+            pass
+
+    @property
+    def device_info(self):
+        """Return device information for the device registry."""
+        return {
+            "identifiers": {(DOMAIN, self._device_identifier)},
+            "name": self._attr_name,
+        }
+
+    def _maybe_log(self, msg, *args):
+        """Log at debug or info depending on configured log level."""
+        if self._log_level == "DEBUG":
+            _LOGGER.debug(msg, *args)
+        elif self._log_level == "INFO":
+            _LOGGER.info(msg, *args)
+        elif self._log_level == "WARNING":
+            # skip debug/info messages at WARNING level
+            return
 
     @property
     def current_temperature(self):
@@ -126,11 +211,13 @@ class GenericWaterHeater(WaterHeaterEntity, RestoreEntity):
     async def async_set_temperature(self, **kwargs):
         """Set new target temperatures."""
         self._target_temperature = kwargs.get(ATTR_TEMPERATURE)
+        self._maybe_log("%s: async_set_temperature -> target=%s", self.name, self._target_temperature)
         await self._async_control_heating()
 
     async def async_set_operation_mode(self, operation_mode):
         """Set new operation mode."""
         self._current_operation = operation_mode
+        self._maybe_log("%s: async_set_operation_mode -> mode=%s", self.name, self._current_operation)
         await self._async_control_heating()
 
     async def async_added_to_hass(self):
@@ -183,38 +270,74 @@ class GenericWaterHeater(WaterHeaterEntity, RestoreEntity):
         else:
             self._current_temperature = float(new_state.state)
 
+        self._maybe_log(
+            "%s: sensor changed -> current_temperature=%s, target=%s, delta=%s",
+            self.name,
+            self._current_temperature,
+            self._target_temperature,
+            self._temperature_delta,
+        )
+
         await self._async_control_heating()
 
     @callback
     def _async_switch_changed(self, event):
         """Handle heater switch state changes."""
         new_state = event.data.get("new_state")
-        _LOGGER.debug(f"New switch state = {new_state}")
+        self._maybe_log("New switch state = %s", new_state)
         if new_state is None or new_state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
             self._attr_available = False
         else:
             self._attr_available = True
-            _LOGGER.debug("%s became Available", self.name)
+            self._maybe_log("%s became Available", self.name)
             if new_state.state == STATE_ON and self._current_operation == STATE_OFF:
                 self._current_operation = STATE_ON
-                _LOGGER.debug("STATE_ON")
+                self._maybe_log("STATE_ON")
             elif new_state.state == STATE_OFF and self._current_operation == STATE_ON:
                 self._current_operation = STATE_OFF
-                _LOGGER.debug("STATE_OFF")
+                self._maybe_log("STATE_OFF")
 
         self.async_write_ha_state()
 
     async def _async_control_heating(self):
         """Check if we need to turn heating on or off."""
-        if self._current_operation == STATE_OFF or self._current_temperature is None:
-            pass
-        elif (
-            abs(self._current_temperature - self._target_temperature) > self._temperature_delta
+        self._maybe_log(
+            "%s: control_heating start -> operation=%s, current_temperature=%s, target=%s, delta=%s",
+            self.name,
+            self._current_operation,
+            self._current_temperature,
+            self._target_temperature,
+            self._temperature_delta,
+        )
+
+        # If the water heater mode is explicitly OFF, ensure underlying switch is off
+        if self._current_operation == STATE_OFF:
+            self._maybe_log("%s: operation is OFF, turning underlying switch off", self.name)
+            await self._async_heater_turn_off()
+            self.async_write_ha_state()
+            return
+
+        # If we don't have the required temperature information, just update state
+        if (
+            self._current_temperature is None
+            or self._target_temperature is None
+            or self._temperature_delta is None
         ):
+            self._maybe_log("%s: missing temperature/target/delta, skipping control", self.name)
+            self.async_write_ha_state()
+            return
+
+        # Otherwise control heating based on temperature delta
+        diff = abs(self._current_temperature - self._target_temperature)
+        self._maybe_log("%s: temperature diff=%s (delta=%s)", self.name, diff, self._temperature_delta)
+        if diff > self._temperature_delta:
             if self._current_temperature < self._target_temperature:
+                self._maybe_log("%s: current < target -> turning ON", self.name)
                 await self._async_heater_turn_on()
             else:
+                self._maybe_log("%s: current >= target -> turning OFF", self.name)
                 await self._async_heater_turn_off()
+
         self.async_write_ha_state()
 
     async def _async_heater_turn_on(self):
@@ -223,7 +346,7 @@ class GenericWaterHeater(WaterHeaterEntity, RestoreEntity):
         if heater is None or heater.state == STATE_ON:
             return
 
-        _LOGGER.debug("Turning on heater %s", self.heater_entity_id)
+        self._maybe_log("Turning on heater %s", self.heater_entity_id)
         data = {ATTR_ENTITY_ID: self.heater_entity_id}
         await self.hass.services.async_call(
             HA_DOMAIN, SERVICE_TURN_ON, data, context=self._context
@@ -235,7 +358,7 @@ class GenericWaterHeater(WaterHeaterEntity, RestoreEntity):
         if heater is None or heater.state == STATE_OFF:
             return
 
-        _LOGGER.debug("Turning off heater %s", self.heater_entity_id)
+        self._maybe_log("Turning off heater %s", self.heater_entity_id)
         data = {ATTR_ENTITY_ID: self.heater_entity_id}
         await self.hass.services.async_call(
             HA_DOMAIN, SERVICE_TURN_OFF, data, context=self._context

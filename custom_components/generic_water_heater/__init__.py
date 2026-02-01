@@ -7,6 +7,8 @@ from homeassistant.components.water_heater import DOMAIN as WATER_HEATER_DOMAIN
 from homeassistant.const import CONF_NAME
 from homeassistant.helpers import discovery
 import homeassistant.helpers.config_validation as cv
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -41,18 +43,39 @@ CONFIG_SCHEMA = vol.Schema(
 
 
 async def async_setup(hass, hass_config):
-    """Set up Generic Water Heaters."""
-    for water_heater, conf in hass_config.get(DOMAIN).items():
-        _LOGGER.debug("Setup %s.%s", DOMAIN, water_heater)
+    """Set up Generic Water Heaters from YAML (keeps backward compatibility)."""
+    if DOMAIN in hass_config:
+        for water_heater, conf in hass_config.get(DOMAIN).items():
+            _LOGGER.debug("Setup %s.%s", DOMAIN, water_heater)
 
-        conf[CONF_NAME] = water_heater
-        hass.async_create_task(
-            discovery.async_load_platform(
-                hass,
-                WATER_HEATER_DOMAIN,
-                DOMAIN,
-                [conf],
-                hass_config,
+            conf[CONF_NAME] = water_heater
+            hass.async_create_task(
+                discovery.async_load_platform(
+                    hass,
+                    WATER_HEATER_DOMAIN,
+                    DOMAIN,
+                    [conf],
+                    hass_config,
+                )
             )
-        )
     return True
+
+
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Set up Generic Water Heater from a config entry."""
+    # Forward the config entry to the water_heater platform
+    hass.async_create_task(
+        hass.config_entries.async_forward_entry_setups(entry, [WATER_HEATER_DOMAIN])
+    )
+
+    async def _async_entry_updated(hass: HomeAssistant, entry: ConfigEntry) -> None:
+        """Handle options update by reloading the config entry."""
+        await hass.config_entries.async_reload(entry.entry_id)
+
+    entry.add_update_listener(_async_entry_updated)
+    return True
+
+
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Unload a config entry."""
+    return await hass.config_entries.async_forward_entry_unload(entry, WATER_HEATER_DOMAIN)

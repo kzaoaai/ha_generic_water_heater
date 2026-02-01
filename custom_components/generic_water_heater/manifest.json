@@ -4,7 +4,8 @@
   "issue_tracker": "https://github.com/dgomes/ha_generic_water_heater/issues",
   "codeowners": ["@dgomes"],
   "name": "Generic Water Heater",
-  "version": "0.0.3",
+  "version": "0.0.5",
   "dependencies": ["sensor", "switch"],
+  "config_flow": true,
   "iot_class": "local_push"
 }

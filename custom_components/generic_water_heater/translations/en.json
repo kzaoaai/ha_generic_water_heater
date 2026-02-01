@@ -1,0 +1,36 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Generic Water Heater Setup",
+        "data": {
+          "name": "Name",
+          "heater_switch": "Heater Switch",
+          "temperature_sensor": "Temperature Sensor",
+          "target_temperature": "Target Temperature",
+          "delta_temperature": "Temperature Delta",
+          "min_temp": "Minimum Temperature",
+          "max_temp": "Maximum Temperature",
+          "log_level": "Log Level"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Generic Water Heater Options",
+        "data": {
+          "name": "Name",
+          "heater_switch": "Heater Switch",
+          "temperature_sensor": "Temperature Sensor",
+          "target_temperature": "Target Temperature",
+          "delta_temperature": "Temperature Delta",
+          "min_temp": "Minimum Temperature",
+          "max_temp": "Maximum Temperature",
+          "log_level": "Log Level"
+        }
+      }
+    }
+  }
+}
