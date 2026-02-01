@@ -6,7 +6,7 @@ from homeassistant.const import CONF_NAME
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.selector import selector
 
-from . import DOMAIN, CONF_HEATER, CONF_SENSOR, CONF_TARGET_TEMP, CONF_TEMP_DELTA, CONF_TEMP_MIN, CONF_TEMP_MAX
+from . import DOMAIN, CONF_HEATER, CONF_SENSOR, CONF_TARGET_TEMP, CONF_TEMP_DELTA, CONF_TEMP_MIN, CONF_TEMP_MAX, CONF_COOLDOWN
 
 
 class GenericWaterHeaterConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -36,6 +36,7 @@ class GenericWaterHeaterConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Optional(CONF_TEMP_DELTA, default=5.0): vol.Coerce(float),
                 vol.Optional(CONF_TEMP_MIN): vol.Coerce(float),
                 vol.Optional(CONF_TEMP_MAX): vol.Coerce(float),
+                vol.Optional(CONF_COOLDOWN, default=10.0): vol.Coerce(float),
                 vol.Optional("log_level", default="DEBUG"): selector(
                     {
                         "select": {
@@ -70,6 +71,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 vol.Optional(CONF_TEMP_DELTA, default=current.get(CONF_TEMP_DELTA, 5.0)): vol.Coerce(float),
                 vol.Optional(CONF_TEMP_MIN, default=current.get(CONF_TEMP_MIN)): vol.Coerce(float),
                 vol.Optional(CONF_TEMP_MAX, default=current.get(CONF_TEMP_MAX)): vol.Coerce(float),
+                vol.Optional(CONF_COOLDOWN, default=current.get(CONF_COOLDOWN, 10.0)): vol.Coerce(float),
                 vol.Optional("log_level", default=current.get("log_level", "DEBUG")): selector(
                     {
                         "select": {

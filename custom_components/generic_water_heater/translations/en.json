@@ -11,6 +11,7 @@
           "delta_temperature": "Temperature Delta",
           "min_temp": "Minimum Temperature",
           "max_temp": "Maximum Temperature",
+          "cooldown": "Cooldown period (seconds)",
           "log_level": "Log Level"
         }
       }
@@ -28,6 +29,7 @@
           "delta_temperature": "Temperature Delta",
           "min_temp": "Minimum Temperature",
           "max_temp": "Maximum Temperature",
+          "cooldown": "Cooldown period (seconds)",
           "log_level": "Log Level"
         }
       }

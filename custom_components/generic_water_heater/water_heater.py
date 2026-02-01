@@ -1,5 +1,6 @@
 """Support for generic water heater units."""
 import logging
+from datetime import timedelta
 
 from homeassistant.components.water_heater import (
     DEFAULT_MIN_TEMP,
@@ -25,8 +26,9 @@ from homeassistant.helpers import device_registry as dr, entity_registry as er
 
 from homeassistant.const import UnitOfTemperature
 from homeassistant.util.unit_conversion import TemperatureConverter
+import homeassistant.util.dt as dt_util
 
-from . import DOMAIN, CONF_HEATER, CONF_SENSOR, CONF_TARGET_TEMP, CONF_TEMP_DELTA, CONF_TEMP_MIN, CONF_TEMP_MAX
+from . import DOMAIN, CONF_HEATER, CONF_SENSOR, CONF_TARGET_TEMP, CONF_TEMP_DELTA, CONF_TEMP_MIN, CONF_TEMP_MAX, CONF_COOLDOWN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -47,6 +49,7 @@ async def async_setup_platform(
         temp_delta = config.get(CONF_TEMP_DELTA, 5.0)
         min_temp = config.get(CONF_TEMP_MIN)
         max_temp = config.get(CONF_TEMP_MAX)
+        cooldown = config.get(CONF_COOLDOWN, 10.0)
         log_level = config.get("log_level", "DEBUG")
         unit = hass.config.units.temperature_unit
 
@@ -68,6 +71,7 @@ async def async_setup_platform(
                 temp_delta,
                 min_temp,
                 max_temp,
+                cooldown,
                 unit,
                 log_level=log_level,
                 config_entry_id=None,
@@ -89,6 +93,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
     temp_delta = data.get(CONF_TEMP_DELTA)
     min_temp = data.get(CONF_TEMP_MIN)
     max_temp = data.get(CONF_TEMP_MAX)
+    cooldown = data.get(CONF_COOLDOWN, 10.0)
     unit = hass.config.units.temperature_unit
     log_level = data.get("log_level", "DEBUG")
 
@@ -111,6 +116,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
                 temp_delta,
                 min_temp,
                 max_temp,
+                cooldown,
                 unit,
                 log_level=log_level,
                 config_entry_id=entry.entry_id,
@@ -139,6 +145,7 @@ class GenericWaterHeater(WaterHeaterEntity, RestoreEntity):
         temp_delta,
         min_temp,
         max_temp,
+        cooldown,
         unit,
         log_level: str = "DEBUG",
         config_entry_id=None,
@@ -153,6 +160,7 @@ class GenericWaterHeater(WaterHeaterEntity, RestoreEntity):
         self._temperature_delta = temp_delta
         self._min_temp = min_temp
         self._max_temp = max_temp
+        self._cooldown_period = timedelta(seconds=cooldown)
         self._unit_of_measurement = unit
         self._current_operation = STATE_ON
         self._current_temperature = None
@@ -166,6 +174,8 @@ class GenericWaterHeater(WaterHeaterEntity, RestoreEntity):
         self._device_identifiers = device_identifiers
         self._last_commanded_switch_state = None
         self._timer_handle = None
+        self._last_switch_change_time = None
+        self._cooldown_timer = None
         # device/unique id
         # prefer config_entry_id (when created via UI) otherwise fall back to heater entity id
         self._device_identifier = config_entry_id or heater_entity_id
@@ -341,6 +351,7 @@ class GenericWaterHeater(WaterHeaterEntity, RestoreEntity):
             self._attr_available = True
             self._maybe_log("%s became Available", self.name)
             
+            self._last_switch_change_time = dt_util.utcnow()
             if (
                 self._last_commanded_switch_state is not None
                 and new_state.state != self._last_commanded_switch_state
@@ -400,16 +411,28 @@ class GenericWaterHeater(WaterHeaterEntity, RestoreEntity):
     async def _async_control_heating_callback(self, _now):
         """Callback for delayed control heating."""
         self._timer_handle = None
+        self._cooldown_timer = None
         await self._async_control_heating()
 
     async def _async_heater_turn_on(self):
         """Turn heater toggleable device on."""
+        now = dt_util.utcnow()
+        if self._last_switch_change_time:
+            delta = now - self._last_switch_change_time
+            if delta < self._cooldown_period:
+                self._maybe_log("Cooldown active, delaying turn_on")
+                if self._cooldown_timer:
+                    self._cooldown_timer()
+                self._cooldown_timer = async_call_later(self.hass, (self._cooldown_period - delta).total_seconds(), self._async_control_heating_callback)
+                return
+
         self._last_commanded_switch_state = STATE_ON
         heater = self.hass.states.get(self.heater_entity_id)
         if heater is None or heater.state == STATE_ON:
             return
 
         self._maybe_log("Turning on heater %s", self.heater_entity_id)
+        self._last_switch_change_time = now
         data = {ATTR_ENTITY_ID: self.heater_entity_id}
         await self.hass.services.async_call(
             HA_DOMAIN, SERVICE_TURN_ON, data, context=self._context
@@ -417,12 +440,23 @@ class GenericWaterHeater(WaterHeaterEntity, RestoreEntity):
 
     async def _async_heater_turn_off(self):
         """Turn heater toggleable device off."""
+        now = dt_util.utcnow()
+        if self._last_switch_change_time:
+            delta = now - self._last_switch_change_time
+            if delta < self._cooldown_period:
+                self._maybe_log("Cooldown active, delaying turn_off")
+                if self._cooldown_timer:
+                    self._cooldown_timer()
+                self._cooldown_timer = async_call_later(self.hass, (self._cooldown_period - delta).total_seconds(), self._async_control_heating_callback)
+                return
+
         self._last_commanded_switch_state = STATE_OFF
         heater = self.hass.states.get(self.heater_entity_id)
         if heater is None or heater.state == STATE_OFF:
             return
 
         self._maybe_log("Turning off heater %s", self.heater_entity_id)
+        self._last_switch_change_time = now
         data = {ATTR_ENTITY_ID: self.heater_entity_id}
         await self.hass.services.async_call(
             HA_DOMAIN, SERVICE_TURN_OFF, data, context=self._context

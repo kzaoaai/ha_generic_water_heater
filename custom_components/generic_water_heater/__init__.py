@@ -20,6 +20,7 @@ CONF_TARGET_TEMP = "target_temperature"
 CONF_TEMP_DELTA = "delta_temperature"
 CONF_TEMP_MIN = "min_temp"
 CONF_TEMP_MAX = "max_temp"
+CONF_COOLDOWN = "cooldown"
 
 CONFIG_SCHEMA = vol.Schema(
     {
@@ -33,6 +34,7 @@ CONFIG_SCHEMA = vol.Schema(
                         vol.Optional(CONF_TARGET_TEMP): vol.Coerce(float),
                         vol.Optional(CONF_TEMP_MIN): vol.Coerce(float),
                         vol.Optional(CONF_TEMP_MAX): vol.Coerce(float),
+                        vol.Optional(CONF_COOLDOWN, default=10.0): vol.Coerce(float),
                         vol.Optional("log_level"): cv.string,
                     }
                 )
