@@ -17,7 +17,7 @@ class GenericWaterHeaterConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @staticmethod
     def async_get_options_flow(config_entry):
         """Return options flow handler for the config entry (compat helper)."""
-        return OptionsFlowHandler(config_entry)
+        return OptionsFlowHandler()
 
     async def async_step_user(self, user_input=None):
         """Handle the initial step."""
@@ -30,12 +30,10 @@ class GenericWaterHeaterConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         data_schema = vol.Schema(
             {
                 vol.Required(CONF_NAME): cv.string,
-                vol.Required(CONF_HEATER): selector(
-                    {"entity": {"domain": ["switch", "input_boolean"]}}
-                ),
-                vol.Required(CONF_SENSOR): selector({"entity": {"domain": "sensor"}}),
-                vol.Optional(CONF_TARGET_TEMP): vol.Coerce(float),
-                vol.Optional(CONF_TEMP_DELTA): vol.Coerce(float),
+                vol.Required(CONF_HEATER): selector({"entity": {"domain": "switch"}}),
+                vol.Required(CONF_SENSOR): selector({"entity": {"domain": "sensor", "device_class": "temperature"}}),
+                vol.Optional(CONF_TARGET_TEMP, default=45.0): vol.Coerce(float),
+                vol.Optional(CONF_TEMP_DELTA, default=5.0): vol.Coerce(float),
                 vol.Optional(CONF_TEMP_MIN): vol.Coerce(float),
                 vol.Optional(CONF_TEMP_MAX): vol.Coerce(float),
                 vol.Optional("log_level", default="DEBUG"): selector(
@@ -58,23 +56,18 @@ class GenericWaterHeaterConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 class OptionsFlowHandler(config_entries.OptionsFlow):
     """Handle options for Generic Water Heater."""
 
-    def __init__(self, config_entry):
-        self.config_entry = config_entry
-
     async def async_step_init(self, user_input=None):
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 
-        current = self.config_entry.data
+        current = {**self.config_entry.data, **self.config_entry.options}
         data_schema = vol.Schema(
             {
                 vol.Required(CONF_NAME, default=current.get(CONF_NAME)): cv.string,
-                vol.Required(CONF_HEATER, default=current.get(CONF_HEATER)): selector(
-                    {"entity": {"domain": ["switch", "input_boolean"]}}
-                ),
-                vol.Required(CONF_SENSOR, default=current.get(CONF_SENSOR)): selector({"entity": {"domain": "sensor"}}),
-                vol.Optional(CONF_TARGET_TEMP, default=current.get(CONF_TARGET_TEMP)): vol.Coerce(float),
-                vol.Optional(CONF_TEMP_DELTA, default=current.get(CONF_TEMP_DELTA)): vol.Coerce(float),
+                vol.Required(CONF_HEATER, default=current.get(CONF_HEATER)): selector({"entity": {"domain": "switch"}}),
+                vol.Required(CONF_SENSOR, default=current.get(CONF_SENSOR)): selector({"entity": {"domain": "sensor", "device_class": "temperature"}}),
+                vol.Optional(CONF_TARGET_TEMP, default=current.get(CONF_TARGET_TEMP, 45.0)): vol.Coerce(float),
+                vol.Optional(CONF_TEMP_DELTA, default=current.get(CONF_TEMP_DELTA, 5.0)): vol.Coerce(float),
                 vol.Optional(CONF_TEMP_MIN, default=current.get(CONF_TEMP_MIN)): vol.Coerce(float),
                 vol.Optional(CONF_TEMP_MAX, default=current.get(CONF_TEMP_MAX)): vol.Coerce(float),
                 vol.Optional("log_level", default=current.get("log_level", "DEBUG")): selector(
@@ -92,7 +85,3 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         )
 
         return self.async_show_form(step_id="init", data_schema=data_schema)
-
-
-async def async_get_options_flow(config_entry):
-    return OptionsFlowHandler(config_entry)

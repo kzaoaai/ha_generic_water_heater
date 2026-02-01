@@ -33,6 +33,7 @@ CONFIG_SCHEMA = vol.Schema(
                         vol.Optional(CONF_TARGET_TEMP): vol.Coerce(float),
                         vol.Optional(CONF_TEMP_MIN): vol.Coerce(float),
                         vol.Optional(CONF_TEMP_MAX): vol.Coerce(float),
+                        vol.Optional("log_level"): cv.string,
                     }
                 )
             }

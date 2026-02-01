@@ -22,7 +22,7 @@ from homeassistant.core import DOMAIN as HA_DOMAIN, callback
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.helpers.restore_state import RestoreEntity
 
-from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
+from homeassistant.const import UnitOfTemperature
 from homeassistant.util.unit_conversion import TemperatureConverter
 
 from . import DOMAIN, CONF_HEATER, CONF_SENSOR, CONF_TARGET_TEMP, CONF_TEMP_DELTA, CONF_TEMP_MIN, CONF_TEMP_MAX
@@ -42,10 +42,11 @@ async def async_setup_platform(
         name = config[CONF_NAME]
         heater_entity_id = config[CONF_HEATER]
         sensor_entity_id = config[CONF_SENSOR]
-        target_temp = config.get(CONF_TARGET_TEMP)
-        temp_delta = config.get(CONF_TEMP_DELTA)
+        target_temp = config.get(CONF_TARGET_TEMP, 45.0)
+        temp_delta = config.get(CONF_TEMP_DELTA, 5.0)
         min_temp = config.get(CONF_TEMP_MIN)
         max_temp = config.get(CONF_TEMP_MAX)
+        log_level = config.get("log_level", "DEBUG")
         unit = hass.config.units.temperature_unit
 
         entities.append(
@@ -58,7 +59,7 @@ async def async_setup_platform(
                 min_temp,
                 max_temp,
                 unit,
-                log_level="DEBUG",
+                log_level=log_level,
                 config_entry_id=None,
             )
         )
@@ -196,7 +197,7 @@ class GenericWaterHeater(WaterHeaterEntity, RestoreEntity):
     def min_temp(self):
         """Return the minimum targetable temperature."""
         """If the min temperature is not set on the config, returns the HA default for Water Heaters."""
-        if not self._min_temp:
+        if self._min_temp is None:
             self._min_temp = TemperatureConverter.convert(DEFAULT_MIN_TEMP, UnitOfTemperature.FAHRENHEIT, self._unit_of_measurement) 
         return self._min_temp
 
@@ -204,7 +205,7 @@ class GenericWaterHeater(WaterHeaterEntity, RestoreEntity):
     def max_temp(self):
         """Return the maximum targetable temperature."""
         """If the max temperature is not set on the config, returns the HA default for Water Heaters."""
-        if not self._max_temp:
+        if self._max_temp is None:
             self._max_temp = TemperatureConverter.convert(DEFAULT_MAX_TEMP, UnitOfTemperature.FAHRENHEIT, self._unit_of_measurement) 
         return self._max_temp
 
@@ -254,6 +255,8 @@ class GenericWaterHeater(WaterHeaterEntity, RestoreEntity):
             STATE_UNKNOWN,
         ):
             self._attr_available = True
+        
+        await self._async_control_heating()
         self.async_write_ha_state()
 
     async def _async_sensor_changed(self, event):
@@ -327,16 +330,15 @@ class GenericWaterHeater(WaterHeaterEntity, RestoreEntity):
             self.async_write_ha_state()
             return
 
-        # Otherwise control heating based on temperature delta
-        diff = abs(self._current_temperature - self._target_temperature)
-        self._maybe_log("%s: temperature diff=%s (delta=%s)", self.name, diff, self._temperature_delta)
-        if diff > self._temperature_delta:
-            if self._current_temperature < self._target_temperature:
-                self._maybe_log("%s: current < target -> turning ON", self.name)
-                await self._async_heater_turn_on()
-            else:
-                self._maybe_log("%s: current >= target -> turning OFF", self.name)
-                await self._async_heater_turn_off()
+        # Control heating based on temperature delta
+        # Logic: Turn ON if temp <= target - delta. Turn OFF if temp >= target.
+        if self._current_temperature <= (self._target_temperature - self._temperature_delta):
+            self._maybe_log("%s: current <= (target - delta) -> turning ON", self.name)
+            await self._async_heater_turn_on()
+        elif self._current_temperature >= self._target_temperature:
+            self._maybe_log("%s: current >= target -> turning OFF", self.name)
+            await self._async_heater_turn_off()
+        # Else: stay in current state (hysteresis band)
 
         self.async_write_ha_state()
 
