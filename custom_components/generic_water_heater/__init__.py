@@ -65,16 +65,16 @@ async def async_setup(hass, hass_config):
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Generic Water Heater from a config entry."""
     # Forward the config entry to the water_heater platform
-    hass.async_create_task(
-        hass.config_entries.async_forward_entry_setups(entry, [WATER_HEATER_DOMAIN])
-    )
+    await hass.config_entries.async_forward_entry_setups(entry, [WATER_HEATER_DOMAIN])
 
-    async def _async_entry_updated(hass: HomeAssistant, entry: ConfigEntry) -> None:
-        """Handle options update by reloading the config entry."""
-        await hass.config_entries.async_reload(entry.entry_id)
-
-    entry.add_update_listener(_async_entry_updated)
+    # Register update listener and ensure it's removed on unload to prevent accumulation
+    entry.async_on_unload(entry.add_update_listener(_async_entry_updated))
     return True
+
+
+async def _async_entry_updated(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Handle options update by reloading the config entry."""
+    await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

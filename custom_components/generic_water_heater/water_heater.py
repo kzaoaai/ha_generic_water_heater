@@ -198,7 +198,7 @@ class GenericWaterHeater(WaterHeaterEntity, RestoreEntity):
         """Return the minimum targetable temperature."""
         """If the min temperature is not set on the config, returns the HA default for Water Heaters."""
         if self._min_temp is None:
-            self._min_temp = TemperatureConverter.convert(DEFAULT_MIN_TEMP, UnitOfTemperature.FAHRENHEIT, self._unit_of_measurement) 
+            return TemperatureConverter.convert(DEFAULT_MIN_TEMP, UnitOfTemperature.FAHRENHEIT, self._unit_of_measurement) 
         return self._min_temp
 
     @property
@@ -206,7 +206,7 @@ class GenericWaterHeater(WaterHeaterEntity, RestoreEntity):
         """Return the maximum targetable temperature."""
         """If the max temperature is not set on the config, returns the HA default for Water Heaters."""
         if self._max_temp is None:
-            self._max_temp = TemperatureConverter.convert(DEFAULT_MAX_TEMP, UnitOfTemperature.FAHRENHEIT, self._unit_of_measurement) 
+            return TemperatureConverter.convert(DEFAULT_MAX_TEMP, UnitOfTemperature.FAHRENHEIT, self._unit_of_measurement) 
         return self._max_temp
 
     async def async_set_temperature(self, **kwargs):
