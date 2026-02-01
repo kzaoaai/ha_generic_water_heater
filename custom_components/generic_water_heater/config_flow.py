@@ -30,7 +30,7 @@ class GenericWaterHeaterConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         data_schema = vol.Schema(
             {
                 vol.Required(CONF_NAME): cv.string,
-                vol.Required(CONF_HEATER): selector({"entity": {"domain": "switch"}}),
+                vol.Required(CONF_HEATER): selector({"entity": {"domain": ["switch", "input_boolean"]}}),
                 vol.Required(CONF_SENSOR): selector({"entity": {"domain": "sensor", "device_class": "temperature"}}),
                 vol.Optional(CONF_TARGET_TEMP, default=45.0): vol.Coerce(float),
                 vol.Optional(CONF_TEMP_DELTA, default=5.0): vol.Coerce(float),
@@ -64,7 +64,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
         data_schema = vol.Schema(
             {
                 vol.Required(CONF_NAME, default=current.get(CONF_NAME)): cv.string,
-                vol.Required(CONF_HEATER, default=current.get(CONF_HEATER)): selector({"entity": {"domain": "switch"}}),
+                vol.Required(CONF_HEATER, default=current.get(CONF_HEATER)): selector({"entity": {"domain": ["switch", "input_boolean"]}}),
                 vol.Required(CONF_SENSOR, default=current.get(CONF_SENSOR)): selector({"entity": {"domain": "sensor", "device_class": "temperature"}}),
                 vol.Optional(CONF_TARGET_TEMP, default=current.get(CONF_TARGET_TEMP, 45.0)): vol.Coerce(float),
                 vol.Optional(CONF_TEMP_DELTA, default=current.get(CONF_TEMP_DELTA, 5.0)): vol.Coerce(float),
