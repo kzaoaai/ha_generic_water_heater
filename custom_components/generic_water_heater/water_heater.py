@@ -185,6 +185,23 @@ class GenericWaterHeater(WaterHeaterEntity, RestoreEntity):
             "name": self._attr_name,
         }
 
+    @property
+    def extra_state_attributes(self):
+        """Return the optional state attributes."""
+        return {
+            "hvac_action": self.hvac_action
+        }
+
+    @property
+    def hvac_action(self):
+        """Return the current running hvac operation if supported."""
+        if self._current_operation == STATE_OFF:
+            return "off"
+        heater = self.hass.states.get(self.heater_entity_id)
+        if heater and heater.state == STATE_ON:
+            return "heating"
+        return "idle"
+
     def _maybe_log(self, msg, *args):
         """Log at debug or info depending on configured log level."""
         if self._log_level == "DEBUG":
@@ -320,12 +337,6 @@ class GenericWaterHeater(WaterHeaterEntity, RestoreEntity):
         else:
             self._attr_available = True
             self._maybe_log("%s became Available", self.name)
-            if new_state.state == STATE_ON and self._current_operation == STATE_OFF:
-                self._current_operation = STATE_ON
-                self._maybe_log("STATE_ON")
-            elif new_state.state == STATE_OFF and self._current_operation == STATE_ON:
-                self._current_operation = STATE_OFF
-                self._maybe_log("STATE_OFF")
 
         self.async_write_ha_state()
 
