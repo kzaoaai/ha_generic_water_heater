@@ -19,7 +19,7 @@ from homeassistant.const import (
     STATE_UNKNOWN,
 )
 from homeassistant.core import DOMAIN as HA_DOMAIN, callback
-from homeassistant.helpers.event import async_track_state_change_event
+from homeassistant.helpers.event import async_track_state_change_event, async_call_later
 from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 
@@ -164,6 +164,8 @@ class GenericWaterHeater(WaterHeaterEntity, RestoreEntity):
         self._attr_should_poll = False
         self._log_level = log_level.upper() if log_level else "DEBUG"
         self._device_identifiers = device_identifiers
+        self._last_commanded_switch_state = None
+        self._timer_handle = None
         # device/unique id
         # prefer config_entry_id (when created via UI) otherwise fall back to heater entity id
         self._device_identifier = config_entry_id or heater_entity_id
@@ -299,6 +301,7 @@ class GenericWaterHeater(WaterHeaterEntity, RestoreEntity):
             STATE_UNKNOWN,
         ):
             self._attr_available = True
+            self._last_commanded_switch_state = heater_switch.state
         
         await self._async_control_heating()
         self.async_write_ha_state()
@@ -337,6 +340,20 @@ class GenericWaterHeater(WaterHeaterEntity, RestoreEntity):
         else:
             self._attr_available = True
             self._maybe_log("%s became Available", self.name)
+            
+            if (
+                self._last_commanded_switch_state is not None
+                and new_state.state != self._last_commanded_switch_state
+            ):
+                self._maybe_log("Manual switch override detected: %s", new_state.state)
+                if new_state.state == STATE_ON:
+                    self._current_operation = STATE_ON
+                elif new_state.state == STATE_OFF:
+                    self._current_operation = STATE_OFF
+                
+                if self._timer_handle:
+                    self._timer_handle()
+                self._timer_handle = async_call_later(self.hass, 5, self._async_control_heating_callback)
 
         self.async_write_ha_state()
 
@@ -380,8 +397,14 @@ class GenericWaterHeater(WaterHeaterEntity, RestoreEntity):
 
         self.async_write_ha_state()
 
+    async def _async_control_heating_callback(self, _now):
+        """Callback for delayed control heating."""
+        self._timer_handle = None
+        await self._async_control_heating()
+
     async def _async_heater_turn_on(self):
         """Turn heater toggleable device on."""
+        self._last_commanded_switch_state = STATE_ON
         heater = self.hass.states.get(self.heater_entity_id)
         if heater is None or heater.state == STATE_ON:
             return
@@ -394,6 +417,7 @@ class GenericWaterHeater(WaterHeaterEntity, RestoreEntity):
 
     async def _async_heater_turn_off(self):
         """Turn heater toggleable device off."""
+        self._last_commanded_switch_state = STATE_OFF
         heater = self.hass.states.get(self.heater_entity_id)
         if heater is None or heater.state == STATE_OFF:
             return
