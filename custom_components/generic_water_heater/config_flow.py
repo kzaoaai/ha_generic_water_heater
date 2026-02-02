@@ -6,7 +6,7 @@ from homeassistant.const import CONF_NAME
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.selector import selector
 
-from . import DOMAIN, CONF_HEATER, CONF_SENSOR, CONF_TARGET_TEMP, CONF_TEMP_DELTA, CONF_TEMP_MIN, CONF_TEMP_MAX, CONF_COOLDOWN
+from . import DOMAIN, CONF_HEATER, CONF_SENSOR, CONF_TARGET_TEMP, CONF_TEMP_STEP, CONF_TEMP_DELTA, CONF_TEMP_MIN, CONF_TEMP_MAX, CONF_COOLDOWN
 
 
 class GenericWaterHeaterConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -33,6 +33,7 @@ class GenericWaterHeaterConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required(CONF_HEATER): selector({"entity": {"domain": ["switch", "input_boolean"]}}),
                 vol.Required(CONF_SENSOR): selector({"entity": {"domain": "sensor", "device_class": "temperature"}}),
                 vol.Optional(CONF_TARGET_TEMP, default=45.0): vol.Coerce(float),
+                vol.Optional(CONF_TEMP_STEP, default=1.0): vol.Coerce(float),
                 vol.Optional(CONF_TEMP_DELTA, default=5.0): vol.Coerce(float),
                 vol.Optional(CONF_TEMP_MIN): vol.Coerce(float),
                 vol.Optional(CONF_TEMP_MAX): vol.Coerce(float),
@@ -68,6 +69,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 vol.Required(CONF_HEATER, default=current.get(CONF_HEATER)): selector({"entity": {"domain": ["switch", "input_boolean"]}}),
                 vol.Required(CONF_SENSOR, default=current.get(CONF_SENSOR)): selector({"entity": {"domain": "sensor", "device_class": "temperature"}}),
                 vol.Optional(CONF_TARGET_TEMP, default=current.get(CONF_TARGET_TEMP, 45.0)): vol.Coerce(float),
+                vol.Optional(CONF_TEMP_STEP, default=current.get(CONF_TEMP_STEP, 1.0)): vol.Coerce(float),
                 vol.Optional(CONF_TEMP_DELTA, default=current.get(CONF_TEMP_DELTA, 5.0)): vol.Coerce(float),
                 vol.Optional(CONF_TEMP_MIN, default=current.get(CONF_TEMP_MIN)): vol.Coerce(float),
                 vol.Optional(CONF_TEMP_MAX, default=current.get(CONF_TEMP_MAX)): vol.Coerce(float),

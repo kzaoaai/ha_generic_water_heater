@@ -7,6 +7,7 @@ from homeassistant.components.water_heater import (
     DEFAULT_MAX_TEMP,
     WaterHeaterEntity,
     WaterHeaterEntityFeature,
+    STATE_ELECTRIC,
 )
 from homeassistant.const import (
     ATTR_ENTITY_ID,
@@ -28,7 +29,7 @@ from homeassistant.const import UnitOfTemperature
 from homeassistant.util.unit_conversion import TemperatureConverter
 import homeassistant.util.dt as dt_util
 
-from . import DOMAIN, CONF_HEATER, CONF_SENSOR, CONF_TARGET_TEMP, CONF_TEMP_DELTA, CONF_TEMP_MIN, CONF_TEMP_MAX, CONF_COOLDOWN
+from . import DOMAIN, CONF_HEATER, CONF_SENSOR, CONF_TARGET_TEMP, CONF_TEMP_STEP, CONF_TEMP_DELTA, CONF_TEMP_MIN, CONF_TEMP_MAX, CONF_COOLDOWN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -46,6 +47,7 @@ async def async_setup_platform(
         heater_entity_id = config[CONF_HEATER]
         sensor_entity_id = config[CONF_SENSOR]
         target_temp = config.get(CONF_TARGET_TEMP, 45.0)
+        target_temp_step = config.get(CONF_TEMP_STEP, 1.0)
         temp_delta = config.get(CONF_TEMP_DELTA, 5.0)
         min_temp = config.get(CONF_TEMP_MIN)
         max_temp = config.get(CONF_TEMP_MAX)
@@ -68,6 +70,7 @@ async def async_setup_platform(
                 heater_entity_id,
                 sensor_entity_id,
                 target_temp,
+                target_temp_step,
                 temp_delta,
                 min_temp,
                 max_temp,
@@ -90,6 +93,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
     heater_entity_id = data.get(CONF_HEATER)
     sensor_entity_id = data.get(CONF_SENSOR)
     target_temp = data.get(CONF_TARGET_TEMP)
+    target_temp_step = data.get(CONF_TEMP_STEP)
     temp_delta = data.get(CONF_TEMP_DELTA)
     min_temp = data.get(CONF_TEMP_MIN)
     max_temp = data.get(CONF_TEMP_MAX)
@@ -113,6 +117,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
                 heater_entity_id,
                 sensor_entity_id,
                 target_temp,
+                target_temp_step,
                 temp_delta,
                 min_temp,
                 max_temp,
@@ -142,6 +147,7 @@ class GenericWaterHeater(WaterHeaterEntity, RestoreEntity):
         heater_entity_id,
         sensor_entity_id,
         target_temp,
+        target_temp_step,
         temp_delta,
         min_temp,
         max_temp,
@@ -157,6 +163,7 @@ class GenericWaterHeater(WaterHeaterEntity, RestoreEntity):
         self.sensor_entity_id = sensor_entity_id
         self._attr_supported_features = WaterHeaterEntityFeature.TARGET_TEMPERATURE | WaterHeaterEntityFeature.OPERATION_MODE
         self._target_temperature = target_temp
+        self._target_temperature_step = target_temp_step
         self._temperature_delta = temp_delta
         self._min_temp = min_temp
         self._max_temp = max_temp
@@ -167,6 +174,7 @@ class GenericWaterHeater(WaterHeaterEntity, RestoreEntity):
         self._operation_list = [
             STATE_ON,
             STATE_OFF,
+            STATE_ELECTRIC,
         ]
         self._attr_available = False
         self._attr_should_poll = False
@@ -238,6 +246,11 @@ class GenericWaterHeater(WaterHeaterEntity, RestoreEntity):
     def target_temperature(self):
         """Return the temperature we try to reach."""
         return self._target_temperature
+
+    @property
+    def target_temperature_step(self):
+        """Return the supported step of target temperature."""
+        return self._target_temperature_step
 
     @property
     def current_operation(self):
@@ -358,7 +371,9 @@ class GenericWaterHeater(WaterHeaterEntity, RestoreEntity):
             ):
                 self._maybe_log("Manual switch override detected: %s", new_state.state)
                 if new_state.state == STATE_ON:
-                    self._current_operation = STATE_ON
+                    # Keep current operation if it is ON or ELECTRIC, otherwise default to ON
+                    if self._current_operation not in (STATE_ON, STATE_ELECTRIC):
+                        self._current_operation = STATE_ON
                 elif new_state.state == STATE_OFF:
                     self._current_operation = STATE_OFF
                 
@@ -398,7 +413,7 @@ class GenericWaterHeater(WaterHeaterEntity, RestoreEntity):
 
         # Control heating based on temperature delta
         # Logic: Turn ON if temp <= target - delta. Turn OFF if temp >= target.
-        if self._current_temperature <= (self._target_temperature - self._temperature_delta):
+        if self._current_temperature <= (self._target_temperature - self._temperature_delta) and self._current_operation in (STATE_ON, STATE_ELECTRIC):
             self._maybe_log("%s: current <= (target - delta) -> turning ON", self.name)
             await self._async_heater_turn_on()
         elif self._current_temperature >= self._target_temperature:
