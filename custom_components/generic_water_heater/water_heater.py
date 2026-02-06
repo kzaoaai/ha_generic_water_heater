@@ -102,13 +102,28 @@ async def async_setup_entry(hass, entry, async_add_entities):
     log_level = data.get("log_level", "DEBUG")
 
     registry = er.async_get(hass)
+    device_registry = dr.async_get(hass)
     entity_entry = registry.async_get(heater_entity_id)
     device_identifiers = None
+    current_device_id = None
+
     if entity_entry and entity_entry.device_id:
-        device_registry = dr.async_get(hass)
         device_entry = device_registry.async_get(entity_entry.device_id)
         if device_entry:
             device_identifiers = device_entry.identifiers
+            current_device_id = device_entry.id
+
+    # Cleanup old device links for this config entry
+    linked_devices = dr.async_entries_for_config_entry(device_registry, entry.entry_id)
+    for dev in linked_devices:
+        if current_device_id and dev.id != current_device_id:
+            device_registry.async_update_device(dev.id, remove_config_entry_id=entry.entry_id)
+        elif not current_device_id:
+            # If no physical device is linked, ensure we don't keep links to old physical devices.
+            # Check if it's the standalone device (identifier matches entry_id)
+            is_standalone = any(dom == DOMAIN and ident == entry.entry_id for dom, ident in dev.identifiers)
+            if not is_standalone:
+                device_registry.async_update_device(dev.id, remove_config_entry_id=entry.entry_id)
 
     async_add_entities(
         [
@@ -161,7 +176,7 @@ class GenericWaterHeater(WaterHeaterEntity, RestoreEntity):
         self._attr_name = name
         self.heater_entity_id = heater_entity_id
         self.sensor_entity_id = sensor_entity_id
-        self._attr_supported_features = WaterHeaterEntityFeature.TARGET_TEMPERATURE | WaterHeaterEntityFeature.OPERATION_MODE
+        self._attr_supported_features = WaterHeaterEntityFeature.TARGET_TEMPERATURE | WaterHeaterEntityFeature.OPERATION_MODE | WaterHeaterEntityFeature.ON_OFF
         self._target_temperature = target_temp
         self._target_temperature_step = target_temp_step
         self._temperature_delta = temp_delta
@@ -289,6 +304,14 @@ class GenericWaterHeater(WaterHeaterEntity, RestoreEntity):
         self._current_operation = operation_mode
         self._maybe_log("%s: async_set_operation_mode -> mode=%s", self.name, self._current_operation)
         await self._async_control_heating()
+
+    async def async_turn_on(self, **kwargs):
+        """Turn the entity on."""
+        await self.async_set_operation_mode(STATE_ON)
+
+    async def async_turn_off(self, **kwargs):
+        """Turn the entity off."""
+        await self.async_set_operation_mode(STATE_OFF)
 
     async def async_added_to_hass(self):
         """Run when entity about to be added."""
