@@ -7,13 +7,14 @@
           "name": "Name",
           "heater_switch": "Heater Switch",
           "temperature_sensor": "Temperature Sensor",
-          "target_temperature": "Target Temperature",
           "target_temperature_step": "Target Temperature Step",
-          "delta_temperature": "Temperature Delta",
+          "cold_tolerance": "Cold Tolerance",
+          "hot_tolerance": "Hot Tolerance",
           "min_temp": "Minimum Temperature",
           "max_temp": "Maximum Temperature",
-          "cooldown": "Cooldown period (seconds)",
-          "log_level": "Log Level"
+          "min_cycle_duration": "Minimum Cycle Duration",
+          "eco_entity": "Eco Mode Entity",
+          "eco_value": "Eco Mode Value"
         }
       }
     }
@@ -26,13 +27,14 @@
           "name": "Name",
           "heater_switch": "Heater Switch",
           "temperature_sensor": "Temperature Sensor",
-          "target_temperature": "Target Temperature",
           "target_temperature_step": "Target Temperature Step",
-          "delta_temperature": "Temperature Delta",
+          "cold_tolerance": "Cold Tolerance",
+          "hot_tolerance": "Hot Tolerance",
           "min_temp": "Minimum Temperature",
           "max_temp": "Maximum Temperature",
-          "cooldown": "Cooldown period (seconds)",
-          "log_level": "Log Level"
+          "min_cycle_duration": "Minimum Cycle Duration",
+          "eco_entity": "Eco Mode Entity",
+          "eco_value": "Eco Mode Value"
         }
       }
     }

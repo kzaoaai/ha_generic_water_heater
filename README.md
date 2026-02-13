@@ -4,8 +4,7 @@ The `Generic Water Heater` integration is a custom component for Home Assistant 
 
 ## Features
 
-*   **Thermostat Logic**: Keeps water temperature within a specific range using a configurable hysteresis (delta).
-*   **UI Configuration**: Fully supports Home Assistant's UI configuration flow and options.
+*   **Thermostat Logic**: Keeps water temperature within a specific range using gnd options.
 *   **Manual Override**: Detects if the underlying switch is manually toggled and temporarily respects that state before resuming automatic control.
 *   **Safety Cooldown**: Prevents rapid switching to protect electrical components (configurable, default 10s).
 *   **Failsafe**: Automatically turns off the heater if the temperature sensor becomes unavailable.
@@ -14,16 +13,11 @@ The `Generic Water Heater` integration is a custom component for Home Assistant 
 
 ## Logic
 
-The integration uses a hysteresis logic to prevent short-cycling:
-*   **Turn ON**: When `Current Temperature` <= `Target Temperature` - `Delta`.
-*   **Turn OFF**: When `Current Temperature` >= `Target Temperature`.
-
-*Example*: Target 50°C, Delta 5°C.
-The heater turns **ON** at 45°C and turns **OFF** at 50°C.
-
+The integration uses tolerance logic to prevent short-cycling:
+*   **Turn ON**: rt mrerpuT Tolerance 0.5°C, Hot Tolerance 0.5°C.
+The heater turns **ON** at 49.5°C and turns **OFF** at 50.5°C.
 ## Installation
 
-### HACS (Recommended)
 1.  Open HACS in Home Assistant.
 2.  Add this repository as a Custom Repository (Integration).
 3.  Search for "Generic Water Heater" and install.
@@ -50,22 +44,20 @@ generic_water_heater:
   bath_water:
     heater_switch: switch.dhw_switch
     temperature_sensor: sensor.dhw_temperature
-    target_temperature: 50
-    delta_temperature: 5
+    cold_tolerance: 0.3
+    hot_tolerance: 0.3
     min_temp: 30
     max_temp: 70
     cooldown: 10
 ```
-
-### Configuration Options
+##Configuration Options
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | `heater_switch` | entity_id | **Required** | The switch entity that controls the heater. |
 | `temperature_sensor` | entity_id | **Required** | The sensor entity that reports water temperature. |
-| `target_temperature` | float | 45.0 | Initial target temperature. |
-| `delta_temperature` | float | 5.0 | The hysteresis buffer. Heater turns on at `Target - Delta`. |
+| `cold_tolerance` | float | 0.3 | Minimum difference below target to turn ON. |
+| `hot_tolerance` | float | 0.3 | Minimum difference above target to turn OFF. |
 | `min_temp` | float | *HA Default* | Minimum selectable temperature in the UI. |
 | `max_temp` | float | *HA Default* | Maximum selectable temperature in the UI. |
 | `cooldown` | float | 10.0 | Minimum time (seconds) between switch toggles to prevent rapid cycling. |
-| `log_level` | string | DEBUG | Logging level (DEBUG, INFO, WARNING). |

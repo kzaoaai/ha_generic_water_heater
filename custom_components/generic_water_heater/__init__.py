@@ -18,10 +18,13 @@ CONF_HEATER = "heater_switch"
 CONF_SENSOR = "temperature_sensor"
 CONF_TARGET_TEMP = "target_temperature"
 CONF_TEMP_STEP = "target_temperature_step"
-CONF_TEMP_DELTA = "delta_temperature"
+CONF_COLD_TOLERANCE = "cold_tolerance"
+CONF_HOT_TOLERANCE = "hot_tolerance"
 CONF_TEMP_MIN = "min_temp"
 CONF_TEMP_MAX = "max_temp"
-CONF_COOLDOWN = "cooldown"
+CONF_MIN_CYCLE_DURATION = "min_cycle_duration"
+CONF_ECO_ENTITY = "eco_entity"
+CONF_ECO_VALUE = "eco_value"
 
 CONFIG_SCHEMA = vol.Schema(
     {
@@ -31,13 +34,14 @@ CONFIG_SCHEMA = vol.Schema(
                     {
                         vol.Required(CONF_HEATER): cv.entity_id,
                         vol.Required(CONF_SENSOR): cv.entity_id,
-                        vol.Optional(CONF_TEMP_DELTA): vol.Coerce(float),
+                        vol.Optional(CONF_COLD_TOLERANCE): vol.Coerce(float),
+                        vol.Optional(CONF_HOT_TOLERANCE): vol.Coerce(float),
                         vol.Optional(CONF_TEMP_STEP): vol.Coerce(float),
-                        vol.Optional(CONF_TARGET_TEMP): vol.Coerce(float),
                         vol.Optional(CONF_TEMP_MIN): vol.Coerce(float),
                         vol.Optional(CONF_TEMP_MAX): vol.Coerce(float),
-                        vol.Optional(CONF_COOLDOWN, default=10.0): vol.Coerce(float),
-                        vol.Optional("log_level"): cv.string,
+                        vol.Optional(CONF_MIN_CYCLE_DURATION): cv.time_period,
+                        vol.Optional(CONF_ECO_ENTITY): cv.entity_id,
+                        vol.Optional(CONF_ECO_VALUE): cv.string,
                     }
                 )
             }
