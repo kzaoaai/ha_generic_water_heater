@@ -1,15 +1,12 @@
 # Home Assistant Custom Component - Generic Water Heater
 
-The `Generic Water Heater` integration creates a virtual water heater entity in Home Assistant. It controls a switch or input boolean using a temperature sensor, so you can manage domestic hot water with water heater controls in the UI and in automations.
+The `Generic Water Heater` integration creates a virtual water heater entity in Home Assistant. It controls a switch using a temperature sensor, so you can manage domestic hot water with water heater controls in the UI and in automations.
 
 ## Features
 
 - Thermostat-style control with configurable cold and hot tolerances.
-- Optional Eco mode, controlled by a Home Assistant template condition.
-- `turn_on` maps to `electric` mode.
-- Optional mapping of `turn_off` to `eco` (disabled by default).
-- Explicit `off` remains available in the operation mode selector.
-- Optional extra sensor that tracks the highest recorded temperature in the last 7 days.
+- Smart Eco policy controlled by a dedicated switch plus a template condition.
+- Optional extra sensor that tracks the highest recorded temperature in the last 7 days, useful for legionella prevention workflows.
 - Manual override handling when the underlying switch is toggled directly.
 - Minimum on and off durations to avoid rapid switching.
 - Failsafe shutdown when the temperature sensor becomes unavailable.
@@ -27,7 +24,12 @@ Example with target `50°C`, cold tolerance `0.5°C`, and hot tolerance `0.5°C`
 - Heater turns on at `49.5°C` or lower.
 - Heater turns off at `50.5°C` or higher.
 
-In `performance` mode the heater stays on continuously. In `eco` mode the heater only runs when the Eco template condition evaluates to true.
+Operation behavior:
+
+- `off`: heater stays off.
+- `electric`: follows the threshold logic above.
+- `performance` (Boost): prioritizes heating.
+- Smart Eco ON: applies the template condition as a heating allow/block policy.
 
 ## Installation
 
@@ -49,7 +51,7 @@ This integration is configured from the Home Assistant UI.
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| `heater_switch` | entity_id | Required | The switch or input boolean that controls the heater. |
+| `heater_switch` | entity_id | Required | The switch entity that controls the heater. |
 | `temperature_sensor` | entity_id | Required | The sensor that reports the water temperature. |
 | `target_temperature_step` | float | `1.0` | The step used by the target temperature control in the UI. |
 | `cold_tolerance` | float | `0.0` | Difference below target temperature that allows heating to turn on. |
@@ -58,13 +60,15 @@ This integration is configured from the Home Assistant UI.
 | `max_temp` | float | `80.0` | Maximum selectable target temperature. |
 | `min_on_duration` | duration | `0 seconds` | Minimum time the heater must stay on before it can be turned off. |
 | `min_off_duration` | duration | `120 seconds` | Minimum time the heater must stay off before it can be turned on. |
-| `eco_mode_template_condition` | template | empty | Eco mode is disabled by default when this template is empty. When defined, Eco mode becomes available and this boolean template decides if or when Eco mode is allowed to heat. Useful for users who only want to heat using solar PV power or during specific times of day. |
-| `map_turn_off_to_eco` | boolean | `false` | When enabled, `turn_off` maps to `eco` while `off` remains selectable in the operation mode dropdown. Useful for HomeKit workflows where normal off actions should prefer eco unless `electric` is explicitly selected. |
-| `enable_max_temp_history_sensor` | boolean | `false` | Adds a sensor to the same device that exposes the highest recorded temperature in the last 7 days. |
+| `eco_mode_template_condition` | template | empty | Boolean template used by Smart Eco. When Smart Eco is ON and this evaluates to false, heating is blocked. When Smart Eco is OFF, this template is ignored. |
+| `enable_max_temp_history_sensor` | boolean | `false` | Adds a sensor to the same device that exposes the highest recorded temperature in the last 7 days (useful in anti-legionella monitoring workflows). |
 
-## Eco Mode
+## Smart Eco
 
-When `eco_mode_template_condition` is configured, `eco` becomes an available operation mode.
+Smart Eco is a policy layer, not an operation mode:
+
+- Smart Eco OFF: heater follows base mode behavior only.
+- Smart Eco ON: the template condition can block heating.
 
 Examples:
 
@@ -77,7 +81,11 @@ Examples:
 ```
 
 ```jinja
+{{ states('sensor.pv_generation_w') | float(0) > 3000 }}
+```
+
+```jinja
 {{ is_state('input_boolean.allow_eco_heating', 'on') }}
 ```
 
-If the Eco template evaluates to false, the heater stays off even if the water temperature is below the target.
+If Smart Eco is ON and the template evaluates to false, heating is blocked even if the target would otherwise request heat.
